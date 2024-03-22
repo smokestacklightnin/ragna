@@ -1,7 +1,7 @@
 # import json
 from typing import AsyncIterator  # , cast
 
-from ragna.core import Source  # RagnaException
+from ragna.core import Requirement, Source  # RagnaException
 
 from ._api import ApiAssistant
 
@@ -22,6 +22,10 @@ class AsyncIteratorReader:
 
 class OllamaApiAssistant(ApiAssistant):
     _MODEL: str
+
+    @classmethod
+    def requirements(cls) -> list[Requirement]:
+        return []
 
     @classmethod
     def display_name(cls) -> str:
