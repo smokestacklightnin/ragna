@@ -1,9 +1,23 @@
 # import json
-# from typing import AsyncIterator, cast
+from typing import AsyncIterator  # , cast
 
 from ragna.core import Source  # RagnaException
 
 from ._api import ApiAssistant
+
+
+class AsyncIteratorReader:
+    def __init__(self, ait: AsyncIterator[bytes]) -> None:
+        self._ait = ait
+
+    async def read(self, n: int) -> bytes:
+        # n is usually used to indicate how many bytes to read, but since we want to
+        # return a chunk as soon as it is available, we ignore the value of n. The only
+        # exception is n == 0, which is used by ijson to probe the return type and
+        # set up decoding.
+        if n == 0:
+            return b""
+        return await anext(self._ait, b"")  # type: ignore[call-arg]
 
 
 class OllamaApiAssistant(ApiAssistant):
