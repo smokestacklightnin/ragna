@@ -81,3 +81,7 @@ class OllamaApiAssistant(ApiAssistant):
                         yield cast(str, json_data["message"]["content"])
                 else:
                     raise RagnaException("The response was empty.")
+
+
+class Gemma2B(OllamaApiAssistant):
+    _MODEL = "gemma:2b"
