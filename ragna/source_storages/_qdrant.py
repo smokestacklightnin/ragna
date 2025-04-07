@@ -106,39 +106,54 @@ class Qdrant(VectorDatabaseSourceStorage):
             if offset is None:
                 break
 
+    async def _get_corpus_metadata(
+        self, corpus_name: str
+    ) -> dict[str, tuple[str, list[Any]]]:
+        corpus_metadata = defaultdict(set)
+        for point in self._scroll_points(
+            collection_name=corpus_name, with_payload=True
+        ):
+            for key, value in cast(dict[str, Any], point.payload).items():
+                if any(
+                    [
+                        (key.startswith("__") and key.endswith("__")),
+                        key == self.DOC_CONTENT_KEY,
+                        not value,
+                    ]
+                ):
+                    continue
+
+                corpus_metadata[key].add(value)
+
+        return {
+            key: ({type(value).__name__ for value in values}.pop(), sorted(values))
+            for key, values in corpus_metadata.items()
+        }
+
+    async def list_metadata_coro(
+        self, corpus_names: list[str]
+    ) -> dict[str, tuple[str, list[Any]]]:
+        import asyncio
+
+        tasks = [
+            asyncio.create_task(self._get_corpus_metadata(corpus_name))
+            for corpus_name in corpus_names
+        ]
+        results = await asyncio.gather(*tasks)
+        return dict(zip(corpus_names, results))
+
     def list_metadata(
         self, corpus_name: Optional[str] = None
     ) -> dict[str, dict[str, tuple[str, list[Any]]]]:
+        import asyncio
+
         if corpus_name is None:
             corpus_names = self.list_corpuses()
         else:
             self._ensure_table(corpus_name)
             corpus_names = [corpus_name]
 
-        metadata = {}
-        for corpus_name in corpus_names:
-            corpus_metadata = defaultdict(set)
-            for point in self._scroll_points(
-                collection_name=corpus_name, with_payload=True
-            ):
-                for key, value in cast(dict[str, Any], point.payload).items():
-                    if any(
-                        [
-                            (key.startswith("__") and key.endswith("__")),
-                            key == self.DOC_CONTENT_KEY,
-                            not value,
-                        ]
-                    ):
-                        continue
-
-                    corpus_metadata[key].add(value)
-
-            metadata[corpus_name] = {
-                key: ({type(value).__name__ for value in values}.pop(), sorted(values))
-                for key, values in corpus_metadata.items()
-            }
-
-        return metadata
+        return asyncio.run(self.list_metadata_coro(corpus_names))
 
     def store(
         self,
