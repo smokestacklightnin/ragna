@@ -86,6 +86,19 @@ include = [
 [tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["linux-64", "win-64", "osx-arm64"]
+preview = ["pixi-build"]
+
+[tool.pixi.package]
+name = "ragna"
+# I would like to set this dynamically
+version = "latest"
+
+[tool.pixi.package.build]
+backend = { name = "pixi-build-python", version = "*" }
+channels = [
+  "https://prefix.dev/pixi-build-backends",
+  "https://prefix.dev/conda-forge",
+]
 
 [tool.pixi.pypi-dependencies]
 Ragna = { path = ".", editable = true }
