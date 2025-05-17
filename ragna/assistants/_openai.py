@@ -1,4 +1,5 @@
 import abc
+import itertools
 from functools import cached_property
 from typing import Any, AsyncContextManager, AsyncIterator, Optional, cast
 
@@ -24,7 +25,7 @@ class OpenaiLikeHttpApiAssistant(HttpApiAssistant):
         return instruction + "\n\n".join(source.content for source in sources)
 
     def _call_openai_api(
-        self, prompt: str, sources: list[Source], *, max_new_tokens: int
+        self, prompts: list[str], sources: list[Source], *, max_new_tokens: int
     ) -> AsyncContextManager[AsyncIterator[dict[str, Any]]]:
         # See https://platform.openai.com/docs/api-reference/chat/create
         # and https://platform.openai.com/docs/api-reference/chat/streaming
@@ -40,10 +41,21 @@ class OpenaiLikeHttpApiAssistant(HttpApiAssistant):
                     "role": "system",
                     "content": self._make_system_content(sources),
                 },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
+                *itertools.chain.from_iterable(
+                    (
+                        {
+                            "role": "user",
+                            "content": user_prompt,
+                        },
+                        {
+                            "role": "assistant",
+                            "content": assistant_response,
+                        },
+                    )
+                    for user_prompt, assistant_response in zip(
+                        prompts[::2], prompts[1::2]
+                    )
+                ),
             ],
             "temperature": 0.0,
             "max_tokens": max_new_tokens,
@@ -57,9 +69,16 @@ class OpenaiLikeHttpApiAssistant(HttpApiAssistant):
     async def answer(
         self, messages: list[Message], *, max_new_tokens: int = 256
     ) -> AsyncIterator[str]:
-        prompt, sources = (message := messages[-1]).content, message.sources
+        prompts = [message.content for message in messages if message.role != "system"]
+        sources = list(
+            set(
+                itertools.chain.from_iterable(
+                    message.sources for message in messages if message.role != "system"
+                )
+            )
+        )
         async with self._call_openai_api(
-            prompt, sources, max_new_tokens=max_new_tokens
+            prompts, sources, max_new_tokens=max_new_tokens
         ) as stream:
             async for data in stream:
                 choice = data["choices"][0]
